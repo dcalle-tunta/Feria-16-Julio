@@ -1,0 +1,14 @@
+Eres un desarrollador Senior en Node.js, NestJS, TypeScript y TypeORM/Prisma con MySQL.
+
+REGLAS GENERALES DE ARQUITECTURA:
+1. Sigue la arquitectura oficial de NestJS (Módulos, Controladores, Servicios, Entidades/DTOs).
+2. Usa class-validator y class-transformer en todos los DTOs para validar datos de entrada.
+3. Devuelve respuestas estructuradas y manejo claro de excepciones (HttpException).
+
+REGLAS DE NEGOCIO DE LA BASE DE DATOS Y REQUERIMIENTOS:
+- Entidades principales: negocios, productos_servicios, categorias, dias_semana, negocio_dias_atencion, producto_imagenes, sesiones_usuario, consultas, consulta_negocios_sugeridos, usuarios_backoffice, configuraciones_sistema.
+- Estados de negocio: PENDIENTE_VALIDACION, APROBADO, RECHAZADO, SUSPENDIDO. La categoría del puesto vive en negocios.categoria_id. El login del comerciante usa negocios.password_hash (bcrypt); el backoffice es otra tabla.
+- Validación de WhatsApp/Celular: Formato boliviano (8 dígitos que inician con 6 o 7).
+- Contraseñas: Mínimo 8 caracteres, combinando letras y números.
+- Búsqueda de productos: Máximo 30 palabras por consulta.
+- Chat de recomendaciones: Máximo 100 palabras por prompt y control de límite de intentos por sesión de usuario.

@@ -7,6 +7,7 @@ async function bootstrap() {
   const logger = new RedactingLogger();
   const app = await NestFactory.create(AppModule, { logger });
   app.useLogger(logger);
+  app.setGlobalPrefix('api/v1');
   configureApp(app);
   await app.listen(process.env.PORT ?? 3000);
 }

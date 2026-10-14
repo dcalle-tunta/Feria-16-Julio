@@ -24,3 +24,7 @@ export enum EstadoDisponibilidad {
   DISPONIBLE = 'DISPONIBLE',
   AGOTADO = 'AGOTADO',
 }
+
+export const CODIGOS_DIA_ATENCION = ['JUEVES', 'DOMINGO', 'OTROS'] as const;
+
+export type CodigoDiaAtencion = (typeof CODIGOS_DIA_ATENCION)[number];

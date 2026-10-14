@@ -11,6 +11,7 @@ export interface ApiErrorResponse {
   message: string;
   details: ApiFieldError[];
   timestamp: string;
+  rejection_reason?: string | null;
 }
 
 export const VALIDATION_ERROR_CODE = 'VALIDATION_ERROR';
@@ -103,15 +104,21 @@ export function toApiErrorResponse(
     }
   }
 
-  return {
-    statusCode,
-    body: {
-      error,
-      message: clientMessage(statusCode, message),
-      details,
-      timestamp,
-    },
+  const body: ApiErrorResponse = {
+    error,
+    message: clientMessage(statusCode, message),
+    details,
+    timestamp,
   };
+
+  if (Object.hasOwn(payload, 'rejection_reason')) {
+    const reason = payload.rejection_reason;
+    if (typeof reason === 'string' || reason === null) {
+      body.rejection_reason = reason;
+    }
+  }
+
+  return { statusCode, body };
 }
 
 function clientMessage(statusCode: number, message: string): string {

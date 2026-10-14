@@ -1,5 +1,5 @@
 import * as bcrypt from 'bcrypt';
-import { BCRYPT_COST, hashPassword } from './password.util';
+import { BCRYPT_COST, hashPassword, verifyPassword } from './password.util';
 
 describe('hashPassword', () => {
   it('genera un hash bcrypt con cost 12', async () => {
@@ -12,5 +12,8 @@ describe('hashPassword', () => {
     );
     expect(await bcrypt.compare('Password123', hashed)).toBe(true);
     expect(await bcrypt.compare('otraClave1', hashed)).toBe(false);
+    expect(await verifyPassword('Password123', hashed)).toBe(true);
+    expect(await verifyPassword('otraClave1', hashed)).toBe(false);
+    expect(await verifyPassword('Password123', 'no-es-bcrypt')).toBe(false);
   });
 });

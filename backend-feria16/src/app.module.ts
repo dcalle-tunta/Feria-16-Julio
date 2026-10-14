@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
 import { buildTypeOrmOptions } from './config/typeorm.config';
+import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BusinessesModule } from './modules/businesses/businesses.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
@@ -24,6 +25,7 @@ import { VendorModule } from './modules/vendor/vendor.module';
       useFactory: (config: ConfigService) => buildTypeOrmOptions(config),
     }),
     AuthModule,
+    AdminModule,
     VendorModule,
     CatalogModule,
     BusinessesModule,

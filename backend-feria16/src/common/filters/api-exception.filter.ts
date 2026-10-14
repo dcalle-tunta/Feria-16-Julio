@@ -14,10 +14,15 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
-    const { statusCode, body } = toApiErrorResponse(exception);
+    const { statusCode, body, retryAfterSeconds } =
+      toApiErrorResponse(exception);
 
     if (statusCode >= 500) {
       this.logger.error(redactForLog(exception));
+    }
+
+    if (retryAfterSeconds !== undefined) {
+      response.setHeader('Retry-After', String(retryAfterSeconds));
     }
 
     response.status(statusCode).json(body);

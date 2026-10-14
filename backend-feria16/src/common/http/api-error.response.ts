@@ -12,6 +12,7 @@ export interface ApiErrorResponse {
   details: ApiFieldError[];
   timestamp: string;
   rejection_reason?: string | null;
+  retry_after_seconds?: number;
 }
 
 export const VALIDATION_ERROR_CODE = 'VALIDATION_ERROR';
@@ -42,7 +43,11 @@ export function isErrorCode(value: string): boolean {
 export function toApiErrorResponse(
   exception: unknown,
   now: Date = new Date(),
-): { statusCode: number; body: ApiErrorResponse } {
+): {
+  statusCode: number;
+  body: ApiErrorResponse;
+  retryAfterSeconds?: number;
+} {
   const timestamp = toUtcIso(now);
 
   if (!(exception instanceof HttpException)) {
@@ -118,7 +123,12 @@ export function toApiErrorResponse(
     }
   }
 
-  return { statusCode, body };
+  const retryAfterSeconds = readRetryAfterSeconds(payload.retry_after_seconds);
+  if (retryAfterSeconds !== undefined) {
+    body.retry_after_seconds = retryAfterSeconds;
+  }
+
+  return { statusCode, body, retryAfterSeconds };
 }
 
 function clientMessage(statusCode: number, message: string): string {
@@ -127,6 +137,14 @@ function clientMessage(statusCode: number, message: string): string {
   }
 
   return message;
+}
+
+function readRetryAfterSeconds(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    return undefined;
+  }
+
+  return value;
 }
 
 function readMessage(message: unknown, fallback: string): string {

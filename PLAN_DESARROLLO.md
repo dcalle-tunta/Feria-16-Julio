@@ -74,18 +74,18 @@ Depende de la fase 2 (login de backoffice y guards por rol), de la máquina de e
 
 ### Revisión de puestos
 
-- [ ] `GET /api/v1/admin/vendors`: listar sin `password_hash`, con `status` opcional y paginación `page`/`limit`. Tanto `ADMIN` como `OPERADOR` pueden revisar puestos.
-- [ ] `PATCH /api/v1/admin/vendors/:id/status` con el body `{ status, rejection_reason }`. `rejection_reason` es obligatorio solo para `RECHAZADO` (3 a 255 caracteres). **404** si el negocio no existe. **409** `INVALID_STATUS_TRANSITION` si la transición no está permitida.
-- [ ] Implementar solo estas transiciones: `PENDIENTE_VALIDACION` → `APROBADO` o `RECHAZADO`; `RECHAZADO` → `PENDIENTE_VALIDACION` (reabre el caso y limpia `motivo_rechazo`); `APROBADO` → `SUSPENDIDO`; `SUSPENDIDO` → `APROBADO` (conserva `fecha_aprobacion`).
-- [ ] La primera vez que el estado pasa a `APROBADO`, completar `aprobado_por_id` y `fecha_aprobacion`.
+- [x] `GET /api/v1/admin/vendors`: listar sin `password_hash`, con `status` opcional y paginación `page`/`limit`. Tanto `ADMIN` como `OPERADOR` pueden revisar puestos.
+- [x] `PATCH /api/v1/admin/vendors/:id/status` con el body `{ status, rejection_reason }`. `rejection_reason` es obligatorio solo para `RECHAZADO` (3 a 255 caracteres). **404** si el negocio no existe. **409** `INVALID_STATUS_TRANSITION` si la transición no está permitida.
+- [x] Implementar solo estas transiciones: `PENDIENTE_VALIDACION` → `APROBADO` o `RECHAZADO`; `RECHAZADO` → `PENDIENTE_VALIDACION` (reabre el caso y limpia `motivo_rechazo`); `APROBADO` → `SUSPENDIDO`; `SUSPENDIDO` → `APROBADO` (conserva `fecha_aprobacion`).
+- [x] La primera vez que el estado pasa a `APROBADO`, completar `aprobado_por_id` y `fecha_aprobacion`.
 
 ### Chat
 
-- [ ] Emitir la cookie `feria_sid` (`HttpOnly`, `SameSite=Lax`, `Path=/`) con el `id` de `sesiones_usuario`. Una cookie desconocida se descarta y se emite otra. Guardar IP y user-agent solo para auditoría: no son la clave del límite.
-- [ ] Leer `MAX_CONSULTAS_SESION`, `TIEMPO_BLOQUEO_MINUTOS` y `MAX_NEGOCIOS_SUGERIDOS` de `configuraciones_sistema`. Si falta una fila, usar 20, 60 y 5.
-- [ ] `POST /api/v1/chat/recommend` con `prompt` y `category_id` opcional. Rechazar más de 100 palabras (**422** `WORD_LIMIT_EXCEEDED`) o más de 2000 caracteres. Si `category_id` viene y no existe o está inactiva: **400** `INVALID_CATEGORY`, sin consumir cupo.
-- [ ] Cupo por cookie. Si `bloqueado_hasta` es futuro, responder **429** `RATE_LIMIT_EXCEEDED` (con `retry_after_seconds` y cabecera `Retry-After`) y no incrementar el contador. Si el bloqueo ya venció, `consultas_realizadas` vuelve a 0. Un prompt que se procesa (éxito, sin resultados o fuera de contexto) incrementa el contador. Al llegar al máximo, la siguiente petición fija `bloqueado_hasta = ahora + TIEMPO_BLOQUEO_MINUTOS` y responde **429** sin llamar al modelo. Un **422** o un **400** de validación de campo no consume cupo.
-- [ ] Si el texto no va de productos, servicios o puestos de la feria, responder **400** `OUT_OF_CONTEXT` (este caso sí consume cupo).
-- [ ] Armar candidatos solo con negocios `APROBADO`, categoría opcional y texto contra el `FULLTEXT` de productos y de negocios. Si no hay candidatos, responder **200** `no_results` con el mensaje fijo y no llamar al modelo.
-- [ ] Si hay candidatos, el modelo solo puede citar ids de esa lista; descartar cualquier id ajeno. Rellenar `recommended_vendors` con filas de `negocios` (`id`, `name`, `sector`, `logo_url`), como máximo `MAX_NEGOCIOS_SUGERIDOS`.
-- [ ] Persistir cada consulta procesada en `consultas` y los puestos citados, en el orden devuelto, en `consulta_negocios_sugeridos`.
+- [x] Emitir la cookie `feria_sid` (`HttpOnly`, `SameSite=Lax`, `Path=/`) con el `id` de `sesiones_usuario`. Una cookie desconocida se descarta y se emite otra. Guardar IP y user-agent solo para auditoría: no son la clave del límite.
+- [x] Leer `MAX_CONSULTAS_SESION`, `TIEMPO_BLOQUEO_MINUTOS` y `MAX_NEGOCIOS_SUGERIDOS` de `configuraciones_sistema`. Si falta una fila, usar 20, 60 y 5.
+- [x] `POST /api/v1/chat/recommend` con `prompt` y `category_id` opcional. Rechazar más de 100 palabras (**422** `WORD_LIMIT_EXCEEDED`) o más de 2000 caracteres. Si `category_id` viene y no existe o está inactiva: **400** `INVALID_CATEGORY`, sin consumir cupo.
+- [x] Cupo por cookie. Si `bloqueado_hasta` es futuro, responder **429** `RATE_LIMIT_EXCEEDED` (con `retry_after_seconds` y cabecera `Retry-After`) y no incrementar el contador. Si el bloqueo ya venció, `consultas_realizadas` vuelve a 0. Un prompt que se procesa (éxito, sin resultados o fuera de contexto) incrementa el contador. Al llegar al máximo, la siguiente petición fija `bloqueado_hasta = ahora + TIEMPO_BLOQUEO_MINUTOS` y responde **429** sin llamar al modelo. Un **422** o un **400** de validación de campo no consume cupo.
+- [x] Si el texto no va de productos, servicios o puestos de la feria, responder **400** `OUT_OF_CONTEXT` (este caso sí consume cupo).
+- [x] Armar candidatos solo con negocios `APROBADO`, categoría opcional y texto contra el `FULLTEXT` de productos y de negocios. Si no hay candidatos, responder **200** `no_results` con el mensaje fijo y no llamar al modelo.
+- [x] Si hay candidatos, el modelo solo puede citar ids de esa lista; descartar cualquier id ajeno. Rellenar `recommended_vendors` con filas de `negocios` (`id`, `name`, `sector`, `logo_url`), como máximo `MAX_NEGOCIOS_SUGERIDOS`.
+- [x] Persistir cada consulta procesada en `consultas` y los puestos citados, en el orden devuelto, en `consulta_negocios_sugeridos`.

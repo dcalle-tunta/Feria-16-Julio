@@ -15,6 +15,13 @@ import {
 } from '../../common/http/api-error.response';
 import { Categoria } from '../system/entities/categoria.entity';
 import { ConfiguracionSistema } from '../system/entities/configuracion-sistema.entity';
+import { ChatCandidateService } from './chat-candidate.service';
+import {
+  isFairCommercePrompt,
+  OUT_OF_CONTEXT,
+  OUT_OF_CONTEXT_MESSAGE,
+} from './chat-context.rules';
+import { ChatModelClient } from './chat-model.client';
 import {
   CHAT_CHAR_LIMIT_MESSAGE,
   rejectChatPrompt,
@@ -32,8 +39,21 @@ import {
   resolveChatSettings,
   type ChatSettings,
 } from './chat-quota.rules';
+import {
+  clipModelMessage,
+  NO_RESULTS_MESSAGE,
+  noResultsResponse,
+  selectCitedVendors,
+  SUCCESS_FALLBACK_MESSAGE,
+  SUCCESS_STATUS,
+  toRecommendedVendors,
+  type ChatRecommendResponse,
+  type RecommendedVendor,
+} from './chat-recommendation.rules';
 import { clipOptional, readFeriaSessionId } from './chat-session.cookie';
 import { RecommendChatDto } from './dto/recommend-chat.dto';
+import { ConsultaNegocioSugerido } from './entities/consulta-negocio-sugerido.entity';
+import { Consulta } from './entities/consulta.entity';
 import { SesionUsuario } from './entities/sesion-usuario.entity';
 
 const IP_MAX = 45;
@@ -49,6 +69,8 @@ export class ChatService {
     private readonly categorias: Repository<Categoria>,
     @InjectRepository(ConfiguracionSistema)
     private readonly configuraciones: Repository<ConfiguracionSistema>,
+    private readonly candidates: ChatCandidateService,
+    private readonly model: ChatModelClient,
   ) {}
 
   async resolveSession(request: Request): Promise<string> {
@@ -76,31 +98,65 @@ export class ChatService {
     return id;
   }
 
-  async guardRecommend(
+  async recommend(
     sessionId: string,
     dto: RecommendChatDto,
     now = new Date(),
-  ): Promise<void> {
+  ): Promise<ChatRecommendResponse> {
     this.assertPrompt(dto.prompt);
     await this.assertCategory(dto.category_id);
     const settings = await this.loadSettings();
     await this.enforceQuota(sessionId, settings, now);
-  }
 
-  async recordProcessedPrompt(
-    sessionId: string,
-    now = new Date(),
-  ): Promise<void> {
-    await this.dataSource.transaction(async (manager) => {
-      const session = await this.lockSession(manager, sessionId);
-      const next = countAfterProcessedPrompt(
-        Number(session.consultas_realizadas),
+    if (!isFairCommercePrompt(dto.prompt)) {
+      await this.persistProcessed(
+        sessionId,
+        dto,
+        OUT_OF_CONTEXT_MESSAGE,
+        [],
+        now,
       );
-      await manager.update(SesionUsuario, sessionId, {
-        consultas_realizadas: next,
-        ultima_consulta_at: now,
-      });
-    });
+      throw outOfContext();
+    }
+
+    const found = await this.candidates.find(dto.prompt, dto.category_id);
+    if (found.length === 0) {
+      await this.persistProcessed(sessionId, dto, NO_RESULTS_MESSAGE, [], now);
+      return noResultsResponse();
+    }
+
+    const recommendation = await this.model.recommend(dto.prompt, found);
+    if (recommendation.outOfContext) {
+      await this.persistProcessed(
+        sessionId,
+        dto,
+        OUT_OF_CONTEXT_MESSAGE,
+        [],
+        now,
+      );
+      throw outOfContext();
+    }
+
+    const cited = selectCitedVendors(
+      recommendation.vendorIds,
+      new Set(found.map((candidate) => candidate.id)),
+      settings.maxNegociosSugeridos,
+    );
+    const vendors = toRecommendedVendors(cited, found);
+    if (vendors.length === 0) {
+      await this.persistProcessed(sessionId, dto, NO_RESULTS_MESSAGE, [], now);
+      return noResultsResponse();
+    }
+
+    const message =
+      clipModelMessage(recommendation.message) || SUCCESS_FALLBACK_MESSAGE;
+    await this.persistProcessed(sessionId, dto, message, vendors, now);
+
+    return {
+      status: SUCCESS_STATUS,
+      message,
+      recommendedVendors: vendors,
+    };
   }
 
   private assertPrompt(prompt: string): void {
@@ -190,6 +246,45 @@ export class ChatService {
     }
   }
 
+  private async persistProcessed(
+    sessionId: string,
+    dto: RecommendChatDto,
+    message: string,
+    vendors: readonly RecommendedVendor[],
+    now: Date,
+  ): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const session = await this.lockSession(manager, sessionId);
+      await manager.update(SesionUsuario, sessionId, {
+        consultas_realizadas: countAfterProcessedPrompt(
+          Number(session.consultas_realizadas),
+        ),
+        ultima_consulta_at: now,
+      });
+
+      const inserted = await manager.insert(Consulta, {
+        sesion_id: sessionId,
+        categoria_id: dto.category_id ?? null,
+        pregunta_usuario: dto.prompt,
+        respuesta_feria16: message,
+      });
+      const consultaId = readInsertId(inserted.raw, inserted.identifiers);
+
+      if (vendors.length === 0) {
+        return;
+      }
+
+      await manager.insert(
+        ConsultaNegocioSugerido,
+        vendors.map((vendor, index) => ({
+          consulta_id: consultaId,
+          negocio_id: vendor.id,
+          orden: index + 1,
+        })),
+      );
+    });
+  }
+
   private async lockSession(
     manager: EntityManager,
     sessionId: string,
@@ -209,6 +304,33 @@ export class ChatService {
   }
 }
 
+function outOfContext(): BadRequestException {
+  return new BadRequestException({
+    error: OUT_OF_CONTEXT,
+    message: OUT_OF_CONTEXT_MESSAGE,
+  });
+}
+
+function readInsertId(
+  raw: unknown,
+  identifiers: readonly ObjectLiteral[],
+): number {
+  if (typeof raw === 'object' && raw !== null && 'insertId' in raw) {
+    const insertId = Number((raw as { insertId: unknown }).insertId);
+    if (Number.isInteger(insertId) && insertId > 0) {
+      return insertId;
+    }
+  }
+
+  const id = identifiers[0]?.id;
+  const parsed = Number(id);
+  if (Number.isInteger(parsed) && parsed > 0) {
+    return parsed;
+  }
+
+  throw new Error('No se pudo registrar la consulta.');
+}
+
 function asDate(value: Date | string | null): Date | null {
   if (value === null) {
     return null;
@@ -220,4 +342,8 @@ function asDate(value: Date | string | null): Date | null {
 
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+interface ObjectLiteral {
+  id?: unknown;
 }

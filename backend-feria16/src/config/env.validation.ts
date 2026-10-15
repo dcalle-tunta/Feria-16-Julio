@@ -55,6 +55,15 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   AI_MODEL?: string;
+
+  @IsOptional()
+  @IsString()
+  AI_BASE_URL?: string;
+}
+
+function normalizeAiBaseUrl(value: string | undefined): string {
+  const trimmed = value?.trim().replace(/\/$/, '') ?? '';
+  return trimmed.length > 0 ? trimmed : 'https://api.openai.com/v1';
 }
 
 export function validateEnv(
@@ -86,5 +95,6 @@ export function validateEnv(
     JWT_EXPIRES_IN: validated.JWT_EXPIRES_IN ?? '12h',
     AI_API_KEY: validated.AI_API_KEY ?? '',
     AI_MODEL: validated.AI_MODEL ?? '',
+    AI_BASE_URL: normalizeAiBaseUrl(validated.AI_BASE_URL),
   };
 }

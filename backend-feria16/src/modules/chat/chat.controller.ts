@@ -8,6 +8,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import type { ChatRecommendResponse } from './chat-recommendation.rules';
 import { ChatService } from './chat.service';
 import {
   FERIA_SESSION_COOKIE,
@@ -20,20 +21,18 @@ export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 
   @Post('recommend')
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @HttpCode(HttpStatus.OK)
   async recommend(
     @Body() dto: RecommendChatDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<void> {
+  ): Promise<ChatRecommendResponse> {
     const sessionId = await this.chatService.resolveSession(request);
     response.cookie(
       FERIA_SESSION_COOKIE,
       sessionId,
       FERIA_SESSION_COOKIE_OPTIONS,
     );
-    // El cupo solo sube cuando la consulta se procesa (éxito, sin resultados
-    // o fuera de contexto). Esas respuestas llegan en las tareas siguientes.
-    await this.chatService.guardRecommend(sessionId, dto);
+    return this.chatService.recommend(sessionId, dto);
   }
 }
